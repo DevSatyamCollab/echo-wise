@@ -8,10 +8,13 @@ import (
 
 // model
 type model struct {
+	style styleBundle
 }
 
 func InitialModel() model {
-	return model{}
+	return model{
+		style: DefaultStyle(),
+	}
 }
 
 func (m model) Init() tea.Cmd {
@@ -23,8 +26,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+q", "q":
+		case "q":
 			return m, tea.Quit
+		case "r":
+		case "a":
 		}
 	}
 
@@ -32,9 +37,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	header := "Quote of the day"
-	footer := "r: reload . a: add a quote . q: Quit . h: help"
-	view := ""
+	header := m.style.header.Render("Quote of the day")
+	footer := m.style.footer.Render("r: reload . a: add a quote . q: Quit")
+	view := m.style.quote.Render("Quote")
 
-	return fmt.Sprintf("\n%s\n\n%s\n\n", header, view, footer)
+	return fmt.Sprintf("\n%s\n\n%s\n\n%s\n", header, view, footer)
 }
