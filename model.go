@@ -2,15 +2,23 @@ package main
 
 import (
 	"fmt"
+	"log"
 
+	internal "github.com/DevSatyamCollab/echo-wise/internal/core"
+	"github.com/DevSatyamCollab/echo-wise/internal/suffle"
+	"github.com/DevSatyamCollab/echo-wise/storage"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 var (
-	inputStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF06B7"))
-	continueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#767676"))
+	inputStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF06B7"))
+)
+
+const (
+	defaultQuote  = "I’m not in this world to live up to your expectations and you’re not in this world to live up to mine."
+	defaultAuthor = "Bruce Lee"
 )
 
 const (
@@ -20,32 +28,113 @@ const (
 
 // model
 type model struct {
-	style         styleBundle
 	inputs        []textinput.Model
-	focused       int
+	quotesList    []internal.Quote
 	quote         string
 	author        string
+	style         styleBundle
+	focused       int
+	lastid        int
+	store         *storage.Storage
 	showInputForm bool
 }
 
-func InitialModel() model {
-	var inputs []textinput.Model = make([]textinput.Model, 2)
+func InitialModel(s *storage.Storage) model {
+	inputs := make([]textinput.Model, 2)
 	// quote
 	inputs[quoteInput] = textinput.New()
 	inputs[quoteInput].Placeholder = "Don’t listen to what people say, watch what they do."
 	inputs[quoteInput].Prompt = ""
-	//inputs[quoteInput].Validate =
 
 	// author
 	inputs[authorInput] = textinput.New()
 	inputs[authorInput].Placeholder = "Churchill"
 	inputs[authorInput].Prompt = ""
 
+	// pre-define data
+	ql := []internal.Quote{
+		*internal.NewQuote(0,
+			"Don't listen to what people say, watch what they do.",
+			"Churchill",
+		),
+
+		*internal.NewQuote(1,
+			"The only way to do great work is to love what you do.",
+			"Steve Jobs",
+		),
+
+		*internal.NewQuote(2,
+			"It is not the mountain we conquer, but ourselves.",
+			"Sir Edmund Hilary",
+		),
+
+		*internal.NewQuote(3,
+			"Success is not final, failure is not fatal: it is the courage to continue that counts.",
+			"Winston Churchill",
+		),
+
+		*internal.NewQuote(4,
+			"The trouble with having an open mind, of course, is that people will insist on coming along and trying to put things in it.",
+			"Terry Pratchett",
+		),
+
+		*internal.NewQuote(5,
+			"Life is what happens when you're busy making other plans.",
+			"John Lennon",
+		),
+
+		*internal.NewQuote(6,
+			"Everything is funny, as long as it's happening to somebody else",
+			"Will Rogers",
+		),
+
+		*internal.NewQuote(7,
+			"No act of kindness, no matter how small, is ever wasted.",
+			"Aesop",
+		),
+
+		*internal.NewQuote(8,
+			"In the middle or every difficult lies opportunity.",
+			"Albert Einstein",
+		),
+
+		*internal.NewQuote(9,
+			"Do what you can, with what you have, where you are.",
+			"Theodore Roosevelt",
+		),
+
+		*internal.NewQuote(10,
+			"Yesterday is history, tomorrow is a mystery, but today is a gift. That is why it is called the present",
+			"Alice Morse Earle",
+		),
+	}
+
+	// data from database
+	list, err := s.GetData()
+	if err != nil {
+		log.Fatalf("Error can't get the data from database: %v", err)
+	}
+
+	// only one time
+	if len(list) < 10 {
+		// insert some pre-defined database
+		for _, q := range ql {
+			if err := s.AddData(q.Quote, q.Author); err != nil {
+				log.Printf("Error can't add data to the database: %v\n", err)
+			}
+		}
+
+		list = ql
+
+	}
+
 	return model{
-		style:  DefaultStyle(65),
-		inputs: inputs,
-		quote:  "Quote",
-		author: "Author",
+		style:      DefaultStyle(65),
+		store:      s,
+		inputs:     inputs,
+		quotesList: list,
+		quote:      defaultQuote,
+		author:     defaultAuthor,
 	}
 }
 
@@ -56,7 +145,7 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd = make([]tea.Cmd, len(m.inputs))
+	var cmds = make([]tea.Cmd, len(m.inputs))
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -68,6 +157,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q":
 			return m, tea.Quit
 		case "r":
+			if !m.showInputForm {
+				for {
+					q := suffle.Suffle(m.quotesList)
+					if q.Id != m.lastid {
+						m.lastid = q.Id
+						m.quote = q.Quote
+						m.author = q.Author
+						break
+					}
+				}
+			}
 		case "a":
 			if !m.showInputForm {
 				m.showInputForm = true
@@ -75,6 +175,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.inputs[authorInput].Blur()
 				m.inputs[m.focused].Focus()
 				return m, nil
+			}
+		case "ctrl+l":
+			if !m.showInputForm {
+
 			}
 		case "esc":
 			m.backToMain()
@@ -85,6 +189,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.quote = m.inputs[quoteInput].Value()
 						m.author = m.inputs[authorInput].Value()
 
+						// add to the current list
+						q := *internal.NewQuote(len(m.quotesList),
+							m.inputs[quoteInput].Value(),
+							m.inputs[authorInput].Value())
+						m.quotesList = append(m.quotesList, q)
+
+						// save to the database
+						go func() {
+							if err := m.store.AddData(q.Quote, q.Author); err != nil {
+								log.Printf("Error can' save to the database: %v", err)
+							}
+						}()
 						// reset
 						m.backToMain()
 						return m, nil
@@ -129,14 +245,6 @@ func (m model) View() string {
 	// main View
 	header = m.style.header.Render("Quote of the day")
 	footer = m.style.footer.Render("r: reload . a: add a Quote . l: list of Quote . q: Quit")
-	if m.quote == "" {
-		m.quote = "Quote"
-	}
-
-	if m.author == "" {
-		m.author = ""
-	}
-
 	qtext = m.style.quoteText.Render(fmt.Sprintf("\"%s\"", m.quote))
 	atext = m.style.author.Render("--" + m.author)
 
