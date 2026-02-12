@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	inputStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF06B7"))
+	inputStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF06B7"))
+	defaultWidth = 65
 )
 
 const (
@@ -102,13 +103,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		if msg.Width < 65 {
+		if msg.Width < defaultWidth {
 			m.style = DefaultStyle(msg.Width)
+		} else {
+			m.style = DefaultStyle(defaultWidth)
 		}
+
 	case tea.KeyMsg:
 		switch msg.String() {
+
+		// quit the program
 		case "q":
 			return m, tea.Quit
+
+		// reload the quote
 		case "r":
 			if !m.showInputForm {
 				for {
@@ -125,6 +133,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.timer = timer.New(100 * time.Millisecond)
 				return m, tea.Batch(m.spinner.Tick, m.timer.Init())
 			}
+
+		// add a new quote
 		case "a":
 			if !m.showInputForm {
 				m.showInputForm = true
@@ -132,12 +142,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				return m, m.inputs[m.focused].Focus()
 			}
+
+		// show the list of quotes
 		case "ctrl+l":
 			if !m.showInputForm {
 
 			}
+
+		// back to main menu
 		case "esc":
 			m.backToMain()
+
+		// continue
 		case "enter":
 			if m.showInputForm {
 				if m.focused == len(m.inputs)-1 {
@@ -165,6 +181,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				m.nextInput()
 			}
+
 		case "shift+tab":
 			if m.showInputForm {
 				m.prevInput()
