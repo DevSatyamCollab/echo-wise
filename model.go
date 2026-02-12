@@ -3,11 +3,15 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
-	internal "github.com/DevSatyamCollab/echo-wise/internal/core"
+	predefineddata "github.com/DevSatyamCollab/echo-wise/internal/PreDefinedData"
+	core "github.com/DevSatyamCollab/echo-wise/internal/core"
 	"github.com/DevSatyamCollab/echo-wise/internal/suffle"
 	"github.com/DevSatyamCollab/echo-wise/storage"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/timer"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -29,7 +33,9 @@ const (
 // model
 type model struct {
 	inputs        []textinput.Model
-	quotesList    []internal.Quote
+	quotesList    []core.Quote
+	spinner       spinner.Model
+	timer         timer.Model
 	quote         string
 	author        string
 	style         styleBundle
@@ -37,6 +43,7 @@ type model struct {
 	lastid        int
 	store         *storage.Storage
 	showInputForm bool
+	loading       bool
 }
 
 func InitialModel(s *storage.Storage) model {
@@ -51,73 +58,16 @@ func InitialModel(s *storage.Storage) model {
 	inputs[authorInput].Placeholder = "Churchill"
 	inputs[authorInput].Prompt = ""
 
-	// pre-define data
-	ql := []internal.Quote{
-		*internal.NewQuote(0,
-			"Don't listen to what people say, watch what they do.",
-			"Churchill",
-		),
-
-		*internal.NewQuote(1,
-			"The only way to do great work is to love what you do.",
-			"Steve Jobs",
-		),
-
-		*internal.NewQuote(2,
-			"It is not the mountain we conquer, but ourselves.",
-			"Sir Edmund Hilary",
-		),
-
-		*internal.NewQuote(3,
-			"Success is not final, failure is not fatal: it is the courage to continue that counts.",
-			"Winston Churchill",
-		),
-
-		*internal.NewQuote(4,
-			"The trouble with having an open mind, of course, is that people will insist on coming along and trying to put things in it.",
-			"Terry Pratchett",
-		),
-
-		*internal.NewQuote(5,
-			"Life is what happens when you're busy making other plans.",
-			"John Lennon",
-		),
-
-		*internal.NewQuote(6,
-			"Everything is funny, as long as it's happening to somebody else",
-			"Will Rogers",
-		),
-
-		*internal.NewQuote(7,
-			"No act of kindness, no matter how small, is ever wasted.",
-			"Aesop",
-		),
-
-		*internal.NewQuote(8,
-			"In the middle or every difficult lies opportunity.",
-			"Albert Einstein",
-		),
-
-		*internal.NewQuote(9,
-			"Do what you can, with what you have, where you are.",
-			"Theodore Roosevelt",
-		),
-
-		*internal.NewQuote(10,
-			"Yesterday is history, tomorrow is a mystery, but today is a gift. That is why it is called the present",
-			"Alice Morse Earle",
-		),
-	}
-
 	// data from database
 	list, err := s.GetData()
 	if err != nil {
 		log.Fatalf("Error can't get the data from database: %v", err)
 	}
 
-	// only one time
+	// app set up (one time only)
 	if len(list) < 10 {
 		// insert some pre-defined database
+		ql := predefineddata.GetPreData()
 		for _, q := range ql {
 			if err := s.AddData(q.Quote, q.Author); err != nil {
 				log.Printf("Error can't add data to the database: %v\n", err)
@@ -125,8 +75,12 @@ func InitialModel(s *storage.Storage) model {
 		}
 
 		list = ql
-
 	}
+
+	// spinner setup
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return model{
 		style:      DefaultStyle(65),
@@ -135,13 +89,12 @@ func InitialModel(s *storage.Storage) model {
 		quotesList: list,
 		quote:      defaultQuote,
 		author:     defaultAuthor,
+		spinner:    sp,
 	}
 }
 
-// validate inputs
-
 func (m model) Init() tea.Cmd {
-	return textinput.Blink
+	return nil
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -167,14 +120,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						break
 					}
 				}
+
+				m.loading = true
+				m.timer = timer.New(100 * time.Millisecond)
+				return m, tea.Batch(m.spinner.Tick, m.timer.Init())
 			}
 		case "a":
 			if !m.showInputForm {
 				m.showInputForm = true
 				m.focused = quoteInput
-				m.inputs[authorInput].Blur()
-				m.inputs[m.focused].Focus()
-				return m, nil
+
+				return m, m.inputs[m.focused].Focus()
 			}
 		case "ctrl+l":
 			if !m.showInputForm {
@@ -190,7 +146,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.author = m.inputs[authorInput].Value()
 
 						// add to the current list
-						q := *internal.NewQuote(len(m.quotesList),
+						q := *core.NewQuote(len(m.quotesList),
 							m.inputs[quoteInput].Value(),
 							m.inputs[authorInput].Value())
 						m.quotesList = append(m.quotesList, q)
@@ -206,6 +162,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 				}
+
 				m.nextInput()
 			}
 		case "shift+tab":
@@ -219,20 +176,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		if m.showInputForm {
-			for i := range m.inputs {
-				m.inputs[i].Blur()
-			}
+	// Tigger when time reaches 0
+	case timer.TimeoutMsg:
+		m.loading = false
+		return m, nil
 
-			m.inputs[m.focused].Focus()
-		}
+	// Necessary to keep timer's internal state ticking
+	case timer.TickMsg:
+		var cmd tea.Cmd
+		m.timer, cmd = m.timer.Update(msg)
+		return m, cmd
 
+	// Necessary to keep spinner animating
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 	}
 
 	if m.showInputForm {
 		for i := range m.inputs {
 			m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
+			m.inputs[i].Blur()
+			m.inputs[m.focused].Focus()
 		}
+
 		return m, tea.Batch(cmds...)
 	}
 
@@ -246,7 +214,7 @@ func (m model) View() string {
 	header = m.style.header.Render("Quote of the day")
 	footer = m.style.footer.Render("r: reload . a: add a Quote . l: list of Quote . q: Quit")
 	qtext = m.style.quoteText.Render(fmt.Sprintf("\"%s\"", m.quote))
-	atext = m.style.author.Render("--" + m.author)
+	atext = m.style.author.Render("― " + m.author)
 
 	// join the vertically
 	innerContent = lipgloss.JoinVertical(lipgloss.Left, qtext, atext)
@@ -268,6 +236,14 @@ func (m model) View() string {
 		mainContent = m.style.quoteBox.Render(formFields)
 	}
 
+	// spinner view
+	if m.loading {
+		view := fmt.Sprintf("\n %s Loading...\n", m.spinner.View())
+		return m.style.container.Render(
+			lipgloss.JoinVertical(lipgloss.Left, header, view, footer),
+		)
+	}
+
 	ui = lipgloss.JoinVertical(lipgloss.Left, header, mainContent, footer)
 	return m.style.container.Render(ui)
 }
@@ -284,6 +260,7 @@ func (m *model) prevInput() {
 	if m.focused < 0 {
 		m.focused = len(m.inputs) - 1
 	}
+
 }
 
 func (m *model) backToMain() {

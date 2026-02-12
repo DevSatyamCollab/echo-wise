@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	internal "github.com/DevSatyamCollab/echo-wise/internal/core"
+	core "github.com/DevSatyamCollab/echo-wise/internal/core"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -45,8 +45,8 @@ func (s *Storage) AddData(q, a string) error {
 }
 
 // Get the data from database
-func (s *Storage) GetData() ([]internal.Quote, error) {
-	var results []internal.Quote
+func (s *Storage) GetData() ([]core.Quote, error) {
+	var results []core.Quote
 
 	q := "SELECT * FROM QUOTES;"
 	rows, err := s.DB.Query(q)
@@ -55,7 +55,7 @@ func (s *Storage) GetData() ([]internal.Quote, error) {
 	}
 
 	for rows.Next() {
-		var q internal.Quote
+		var q core.Quote
 		if err := rows.Scan(&q.Id, &q.Quote, &q.Author); err != nil {
 			return nil, err
 		}

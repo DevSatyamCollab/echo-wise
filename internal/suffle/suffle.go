@@ -3,10 +3,10 @@ package suffle
 import (
 	"math/rand"
 
-	internal "github.com/DevSatyamCollab/echo-wise/internal/core"
+	core "github.com/DevSatyamCollab/echo-wise/internal/core"
 )
 
-func Suffle(quotes []internal.Quote) internal.Quote {
+func Suffle(quotes []core.Quote) core.Quote {
 	r := rand.Intn(len(quotes))
 	q := quotes[r]
 	return q
