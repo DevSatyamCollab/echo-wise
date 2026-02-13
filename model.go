@@ -255,10 +255,7 @@ func (m model) View() string {
 
 	// spinner view
 	if m.loading {
-		view := fmt.Sprintf("\n %s Loading...\n", m.spinner.View())
-		return m.style.container.Render(
-			lipgloss.JoinVertical(lipgloss.Left, header, view, footer),
-		)
+		mainContent = fmt.Sprintf("\n %s Loading...\n", m.spinner.View())
 	}
 
 	ui = lipgloss.JoinVertical(lipgloss.Left, header, mainContent, footer)
