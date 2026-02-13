@@ -1,14 +1,17 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"log"
+	"slices"
 	"time"
 
 	predefineddata "github.com/DevSatyamCollab/echo-wise/internal/PreDefinedData"
 	core "github.com/DevSatyamCollab/echo-wise/internal/core"
 	"github.com/DevSatyamCollab/echo-wise/internal/suffle"
 	"github.com/DevSatyamCollab/echo-wise/storage"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -90,6 +93,20 @@ func InitialModel(s *storage.Storage) model {
 	l := list.New(ListQuotesItems(qlist), list.NewDefaultDelegate(), 0, 0)
 	l.Title = "All Quotes"
 
+	// add a delete key in list
+	l.AdditionalFullHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			key.NewBinding(
+				key.WithKeys("ctrl+d"),
+				key.WithHelp("ctrl+d", "delete quote"),
+			),
+			key.NewBinding(
+				key.WithKeys("esc"),
+				key.WithHelp("esc", "back to main menu"),
+			),
+		}
+	}
+
 	return model{
 		style:      DefaultStyle(65),
 		store:      s,
@@ -150,6 +167,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.inputs[m.focused].Focus()
 			}
 
+		case "ctrl+d":
+			if m.showingList {
+				item, ok := m.list.SelectedItem().(item)
+				if ok {
+					delIndex, found := slices.BinarySearchFunc(m.quotesList, item.id, func(q core.Quote, target int) int {
+						return cmp.Compare(q.Id, target)
+					})
+
+					if found {
+						m.quotesList = slices.Delete(m.quotesList, delIndex, delIndex+1)
+						m.list.SetItems(ListQuotesItems(m.quotesList))
+						if err := m.store.DeleteData(item.id); err != nil {
+							log.Fatalln(err)
+						}
+					}
+				}
+			}
 		// show the list of quotes
 		case "ctrl+l":
 			if !m.showInputForm && !m.loading {
