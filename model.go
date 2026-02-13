@@ -9,6 +9,7 @@ import (
 	core "github.com/DevSatyamCollab/echo-wise/internal/core"
 	"github.com/DevSatyamCollab/echo-wise/internal/suffle"
 	"github.com/DevSatyamCollab/echo-wise/storage"
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/timer"
@@ -35,6 +36,7 @@ const (
 type model struct {
 	inputs        []textinput.Model
 	quotesList    []core.Quote
+	list          list.Model
 	spinner       spinner.Model
 	timer         timer.Model
 	quote         string
@@ -45,6 +47,7 @@ type model struct {
 	store         *storage.Storage
 	showInputForm bool
 	loading       bool
+	showingList   bool
 }
 
 func InitialModel(s *storage.Storage) model {
@@ -60,13 +63,13 @@ func InitialModel(s *storage.Storage) model {
 	inputs[authorInput].Prompt = ""
 
 	// data from database
-	list, err := s.GetData()
+	qlist, err := s.GetData()
 	if err != nil {
 		log.Fatalf("Error can't get the data from database: %v", err)
 	}
 
 	// app set up (one time only)
-	if len(list) < 10 {
+	if len(qlist) < 10 {
 		// insert some pre-defined database
 		ql := predefineddata.GetPreData()
 		for _, q := range ql {
@@ -75,7 +78,7 @@ func InitialModel(s *storage.Storage) model {
 			}
 		}
 
-		list = ql
+		qlist = ql
 	}
 
 	// spinner setup
@@ -83,14 +86,19 @@ func InitialModel(s *storage.Storage) model {
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
+	// list setup
+	l := list.New(ListQuotesItems(qlist), list.NewDefaultDelegate(), 0, 0)
+	l.Title = "All Quotes"
+
 	return model{
 		style:      DefaultStyle(65),
 		store:      s,
 		inputs:     inputs,
-		quotesList: list,
+		quotesList: qlist,
 		quote:      defaultQuote,
 		author:     defaultAuthor,
 		spinner:    sp,
+		list:       l,
 	}
 }
 
@@ -99,15 +107,14 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+
+	var cmd tea.Cmd
 	var cmds = make([]tea.Cmd, len(m.inputs))
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		if msg.Width < defaultWidth {
-			m.style = DefaultStyle(msg.Width)
-		} else {
-			m.style = DefaultStyle(defaultWidth)
-		}
+		m.handleResize(msg)
+		return m, nil
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -145,8 +152,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// show the list of quotes
 		case "ctrl+l":
-			if !m.showInputForm {
-
+			if !m.showInputForm && !m.loading {
+				m.showingList = true
+				m.list.SetItems(ListQuotesItems(m.quotesList))
+				return m, nil
 			}
 
 		// back to main menu
@@ -200,13 +209,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Necessary to keep timer's internal state ticking
 	case timer.TickMsg:
-		var cmd tea.Cmd
 		m.timer, cmd = m.timer.Update(msg)
 		return m, cmd
 
 	// Necessary to keep spinner animating
 	case spinner.TickMsg:
-		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	}
@@ -219,6 +226,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, tea.Batch(cmds...)
+	}
+
+	if m.showingList {
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
 	}
 
 	return m, nil
@@ -258,6 +270,11 @@ func (m model) View() string {
 		mainContent = fmt.Sprintf("\n %s Loading...\n", m.spinner.View())
 	}
 
+	// list view
+	if m.showingList {
+		return docStyle.Render(m.list.View())
+	}
+
 	ui = lipgloss.JoinVertical(lipgloss.Left, header, mainContent, footer)
 	return m.style.container.Render(ui)
 }
@@ -282,4 +299,12 @@ func (m *model) backToMain() {
 	m.inputs[authorInput].SetValue("")
 	m.showInputForm = false
 	m.focused = 0
+	m.showingList = false
+}
+
+func (m *model) handleResize(msg tea.WindowSizeMsg) {
+	_, v := docStyle.GetFrameSize()
+	width := min(msg.Width, defaultWidth)
+	m.list.SetSize(width, msg.Height-v) // ← Use width directly, only subtract v
+	m.style = DefaultStyle(width)
 }
