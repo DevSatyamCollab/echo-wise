@@ -81,3 +81,13 @@ func (s *Storage) UpdateData(id int, q, a string) error {
 
 	return nil
 }
+
+// delete the data
+func (s *Storage) DeleteData(id int) error {
+	query := "DELETE FROM QUOTES WHERE id = ?"
+	if _, err := s.DB.Exec(query, id); err != nil {
+		return fmt.Errorf("failed to delete record: %v", err)
+	}
+
+	return nil
+}
