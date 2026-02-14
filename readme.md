@@ -15,6 +15,14 @@ Built with **Go** for speed and a lightweight footprint.
 - **Visual Feedback**: Clear cursor tracking to see exactly which quote you are managing.
 
 ---
+## 🏗️ Architecture & Data
+echo-wise follows a t1 (Single-Tier) DBMS application architecture.
+
+In this architecture, the User Interface (TUI), the application logic (Go), and the Database (SQLite3) all reside on a single local machine. This ensures:
+
+- Zero Latency: Local file I/O means instant quote retrieval.
+- Offline First: No internet connection or external server required.
+- Data Portability: Your entire database is a single file, making it easy to sync
 
 ## ⌨️ Shortcuts & Controls
 
