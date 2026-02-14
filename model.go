@@ -47,6 +47,7 @@ type model struct {
 	showInputForm bool
 	loading       bool
 	showingList   bool
+	quitting      bool
 }
 
 func InitialModel(s *storage.Storage) model {
@@ -145,7 +146,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// quit the program
 		case "q":
-			return m, tea.Quit
+			m.quitting = true
+			return m, tea.Sequence(tea.ExitAltScreen, tea.Quit)
 
 		// reload the quote
 		case "r":
@@ -327,6 +329,11 @@ func (m model) View() string {
 	// list view
 	if m.showingList {
 		return docStyle.Render(m.list.View())
+	}
+
+	// quitting view
+	if m.quitting {
+		footer = ""
 	}
 
 	ui = lipgloss.JoinVertical(lipgloss.Left, header, mainContent, footer)
