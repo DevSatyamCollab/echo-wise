@@ -24,6 +24,11 @@ In this architecture, the User Interface (TUI), the application logic (Go), and 
 - Offline First: No internet connection or external server required.
 - Data Portability: Your entire database is a single file, making it easy to sync
 
+## Technical Stack
+- Language: Go 1.26.0+
+- Database Engine: SQLite3
+- Architecture: t1 (Single-Tier)
+
 ## ⌨️ Shortcuts & Controls
 
 ### 🏠 Main Menu
@@ -67,7 +72,8 @@ Use these controls when filling out quote details.
 
 ### Prerequisites
 
-- [Go](https://go.dev/doc/install) (1.26.0 or higher)
+- [Go](https://go.dev/doc/install) (1.26.0 or higher
+- GCC (Required for sqlite3 driver compilation)
 
 ### Build from Source
 
