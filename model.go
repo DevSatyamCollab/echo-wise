@@ -146,7 +146,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// quit the program
 		case "q":
-			if m.showingList && m.list.FilterState() == list.Filtering {
+			if m.list.FilterState() == list.Filtering {
 				break
 			}
 
@@ -185,6 +185,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// delete the quote
 		case "ctrl+d":
+			if m.list.FilterState() == list.Filtering {
+				break
+			}
+
 			if m.showingList {
 				if item, ok := m.list.SelectedItem().(item); ok {
 					m.deleteItem(item)
@@ -193,7 +197,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		// edit the quote
-		case "e":
+		case "ctrl+e":
+			if m.list.FilterState() == list.Filtering {
+				break
+			}
+
 			if m.showingList {
 				if item, ok := m.list.SelectedItem().(item); ok {
 					m.showingList = false
@@ -219,7 +227,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// back to main menu
 		case "esc":
 			if m.list.FilterState() == list.Filtering {
-				// Let the list handle closing the filter bar
 				break
 			}
 
