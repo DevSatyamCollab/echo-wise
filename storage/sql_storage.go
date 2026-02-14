@@ -3,6 +3,7 @@ package storage
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	core "github.com/DevSatyamCollab/echo-wise/internal/core"
 	_ "github.com/mattn/go-sqlite3"
@@ -44,8 +45,8 @@ func (s *Storage) AddData(q, a string) error {
 	return nil
 }
 
-// Get the data from database
-func (s *Storage) GetData() ([]core.Quote, error) {
+// Get the whole data from database
+func (s *Storage) GetWholeData() ([]core.Quote, error) {
 	var results []core.Quote
 
 	q := "SELECT * FROM QUOTES;"
@@ -90,4 +91,51 @@ func (s *Storage) DeleteData(id int) error {
 	}
 
 	return nil
+}
+
+// delete the whole database
+func (s *Storage) DeleteWholeData() error {
+	query := "DELETE FROM QUOTES"
+	if _, err := s.DB.Exec(query); err != nil {
+		return fmt.Errorf("failed to delete whole record: %v", err)
+	}
+
+	return nil
+}
+
+// Batch insert
+func (s *Storage) BatchInsert(quotes []core.Quote) error {
+	var query strings.Builder
+
+	query.WriteString("INSERT INTO QUOTES(id,quote,author) VALUES")
+	var values []any
+
+	for i, q := range quotes {
+		if i > 0 {
+			query.WriteString(",")
+		}
+		query.WriteString("(?,?,?)")
+		values = append(values, q.Id, q.Quote, q.Author)
+	}
+
+	_, err := s.DB.Exec(query.String(), values...)
+	return err
+}
+
+// get a selective data
+func (s *Storage) GetData(id int) (string, error) {
+	q := fmt.Sprintf("SELECT * FROM QUOTES WHERE id = %d", id)
+	rows, err := s.DB.Query(q)
+	if err != nil {
+		return "", fmt.Errorf("no quote found with id: %v", err)
+	}
+
+	var quote core.Quote
+	for rows.Next() {
+		if err = rows.Scan(&quote.Id, &quote.Quote, &quote.Author); err != nil {
+			return "", err
+		}
+	}
+
+	return quote.Quote, nil
 }

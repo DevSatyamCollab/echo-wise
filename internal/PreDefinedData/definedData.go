@@ -58,5 +58,10 @@ func GetPreData() []core.Quote {
 			"Yesterday is history, tomorrow is a mystery, but today is a gift. That is why it is called the present",
 			"Alice Morse Earle",
 		),
+
+		*core.NewQuote(11,
+			"I’m not in this world to live up to your expectations and you’re not in this world to live up to mine",
+			"Bruce Lee",
+		),
 	}
 }

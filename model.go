@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strings"
 	"time"
 
 	predefineddata "github.com/DevSatyamCollab/echo-wise/internal/PreDefinedData"
@@ -23,11 +24,6 @@ import (
 var (
 	inputStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF06B7"))
 	defaultWidth = 65
-)
-
-const (
-	defaultQuote  = "I’m not in this world to live up to your expectations and you’re not in this world to live up to mine."
-	defaultAuthor = "Bruce Lee"
 )
 
 const (
@@ -59,26 +55,29 @@ func InitialModel(s *storage.Storage) model {
 	inputs[quoteInput] = textinput.New()
 	inputs[quoteInput].Placeholder = "Don’t listen to what people say, watch what they do."
 	inputs[quoteInput].Prompt = ""
-
+	predefineddata.GetPreData()
 	// author
 	inputs[authorInput] = textinput.New()
 	inputs[authorInput].Placeholder = "Churchill"
 	inputs[authorInput].Prompt = ""
 
 	// data from database
-	qlist, err := s.GetData()
+	qlist, err := s.GetWholeData()
 	if err != nil {
-		log.Fatalf("Error can't get the data from database: %v", err)
+		log.Fatalf("Error can't get the whole data from database: %v", err)
 	}
 
-	// app set up (one time only)
-	if len(qlist) < 10 {
-		// insert some pre-defined database
+	//if pre-defined data is deleted
+	if len(qlist) < 12 {
+		// delete the whole database
+		if err = s.DeleteWholeData(); err != nil {
+			log.Fatalf("Error can't get rid of the whole data from database: %v", err)
+		}
+
+		// insert the pre-defined batch items into database
 		ql := predefineddata.GetPreData()
-		for _, q := range ql {
-			if err := s.AddData(q.Quote, q.Author); err != nil {
-				log.Printf("Error can't add data to the database: %v\n", err)
-			}
+		if err := s.BatchInsert(ql); err != nil {
+			log.Fatalf("Error can't insert the pre-defined Data into database: %v", err)
 		}
 
 		qlist = ql
@@ -104,16 +103,24 @@ func InitialModel(s *storage.Storage) model {
 				key.WithKeys("esc"),
 				key.WithHelp("esc", "back to main menu"),
 			),
+			key.NewBinding(
+				key.WithKeys("e"),
+				key.WithHelp("e", "edit the quote"),
+			),
 		}
 	}
+
+	// new quote
+	q := suffle.Suffle(qlist)
 
 	return model{
 		style:      DefaultStyle(65),
 		store:      s,
 		inputs:     inputs,
 		quotesList: qlist,
-		quote:      defaultQuote,
-		author:     defaultAuthor,
+		quote:      q.Quote,
+		author:     q.Author,
+		lastid:     q.Id,
 		spinner:    sp,
 		list:       l,
 	}
@@ -167,25 +174,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.inputs[m.focused].Focus()
 			}
 
+		// delete the quote
 		case "ctrl+d":
 			if m.showingList {
-				item, ok := m.list.SelectedItem().(item)
-				if ok {
-					delIndex, found := slices.BinarySearchFunc(m.quotesList, item.id, func(q core.Quote, target int) int {
-						return cmp.Compare(q.Id, target)
-					})
+				if item, ok := m.list.SelectedItem().(item); ok {
+					m.deleteItem(item)
+					return m, nil
+				}
+			}
 
-					if found {
-						m.quotesList = slices.Delete(m.quotesList, delIndex, delIndex+1)
-						m.list.SetItems(ListQuotesItems(m.quotesList))
-						if err := m.store.DeleteData(item.id); err != nil {
-							log.Fatalln(err)
-						}
-					}
+		// edit the quote
+		case "e":
+			if m.showingList {
+				if item, ok := m.list.SelectedItem().(item); ok {
+					m.showingList = false
+					m.showInputForm = true
+					m.inputs[quoteInput].SetValue(item.quote)
+					m.inputs[authorInput].SetValue(item.author)
+					m.inputs[authorInput].Blur()
+					m.inputs[quoteInput].Focus()
+
+					// delete the current item
+					m.deleteItem(item)
+					return m, nil
 				}
 			}
 		// show the list of quotes
-		case "ctrl+l":
+		case "l":
 			if !m.showInputForm && !m.loading {
 				m.showingList = true
 				m.list.SetItems(ListQuotesItems(m.quotesList))
@@ -201,21 +216,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.showInputForm {
 				if m.focused == len(m.inputs)-1 {
 					if m.inputs[quoteInput].Value() != "" {
-						m.quote = m.inputs[quoteInput].Value()
-						m.author = m.inputs[authorInput].Value()
 
-						// add to the current list
-						q := *core.NewQuote(len(m.quotesList),
-							m.inputs[quoteInput].Value(),
-							m.inputs[authorInput].Value())
-						m.quotesList = append(m.quotesList, q)
+						// check if it's old data
+						if !m.validate(m.inputs[quoteInput].Value()) {
+							m.quote = m.inputs[quoteInput].Value()
+							m.author = m.inputs[authorInput].Value()
 
-						// save to the database
-						go func() {
-							if err := m.store.AddData(q.Quote, q.Author); err != nil {
-								log.Printf("Error can' save to the database: %v", err)
-							}
-						}()
+							// add to the current list
+							q := *core.NewQuote(len(m.quotesList),
+								m.inputs[quoteInput].Value(),
+								m.inputs[authorInput].Value())
+							m.quotesList = append(m.quotesList, q)
+
+							// save to the database
+							go func() {
+								if err := m.store.AddData(q.Quote, q.Author); err != nil {
+									log.Printf("Error can' save to the database: %v", err)
+								}
+							}()
+
+						}
 						// reset
 						m.backToMain()
 						return m, nil
@@ -341,4 +361,29 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) {
 	width := min(msg.Width, defaultWidth)
 	m.list.SetSize(width, msg.Height-v) // ← Use width directly, only subtract v
 	m.style = DefaultStyle(width)
+}
+
+func (m *model) deleteItem(item item) {
+	delIndex, found := slices.BinarySearchFunc(m.quotesList, item.id, func(q core.Quote, target int) int {
+		return cmp.Compare(q.Id, target)
+	})
+
+	if found {
+		if err := m.store.DeleteData(item.id); err != nil {
+			log.Fatalln(err)
+		}
+
+		m.quotesList = slices.Delete(m.quotesList, delIndex, delIndex+1)
+		m.list.SetItems(ListQuotesItems(m.quotesList))
+	}
+}
+
+func (m model) validate(qs string) bool {
+	for _, q := range m.quotesList {
+		if strings.EqualFold(q.Quote, qs) {
+			return true
+		}
+	}
+
+	return false
 }
