@@ -146,12 +146,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// quit the program
 		case "q":
-			m.quitting = true
-			return m, tea.Sequence(tea.ExitAltScreen, tea.Quit)
+			if m.showingList && m.list.FilterState() == list.Filtering {
+				break
+			}
+
+			if !m.showInputForm {
+				m.quitting = true
+				m.showingList = false
+				return m, tea.Sequence(tea.ExitAltScreen, tea.Quit)
+			}
 
 		// reload the quote
 		case "r":
-			if !m.showInputForm {
+			if !m.showInputForm && !m.showingList {
 				for {
 					q := suffle.Suffle(m.quotesList)
 					if q.Id != m.lastid {
@@ -169,7 +176,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// add a new quote
 		case "a":
-			if !m.showInputForm {
+			if !m.showInputForm && !m.showingList {
 				m.showInputForm = true
 				m.focused = quoteInput
 
@@ -203,7 +210,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		// show the list of quotes
 		case "l":
-			if !m.showInputForm && !m.loading {
+			if !m.showInputForm && !m.showingList {
 				m.showingList = true
 				m.list.SetItems(ListQuotesItems(m.quotesList))
 				return m, nil
@@ -211,7 +218,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// back to main menu
 		case "esc":
-			m.backToMain()
+			if m.list.FilterState() == list.Filtering {
+				// Let the list handle closing the filter bar
+				break
+			}
+
+			if (m.showInputForm || m.showingList) && !m.loading {
+				m.backToMain()
+			}
 
 		// continue
 		case "enter":
