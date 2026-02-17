@@ -14,8 +14,20 @@ Built with **Go** for speed and a lightweight footprint.
 - **Dynamic Reloading**: Refresh your collection on the fly without restarting the app.
 - **Visual Feedback**: Clear cursor tracking to see exactly which quote you are managing.
 
+### 🚀 Real-time Data Sync
+
+Check out how the sync works in the demo below:
+
+<details>
+  <summary>Click to expand video demo</summary>
+  
+  ![Demo Video](demo/demo.mp4)
+</details>
+
 ---
+
 ## 🏗️ Architecture & Data
+
 echo-wise follows a t1 (Single-Tier) DBMS application architecture.
 
 In this architecture, the User Interface (TUI), the application logic (Go), and the Database (SQLite3) all reside on a single local machine. This ensures:
@@ -25,6 +37,7 @@ In this architecture, the User Interface (TUI), the application logic (Go), and 
 - Data Portability: Your entire database is a single file, making it easy to sync
 
 ## Technical Stack
+
 - Language: Go 1.26.0+
 - Database Engine: SQLite3
 - Architecture: t1 (Single-Tier)
