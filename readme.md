@@ -21,7 +21,9 @@ Check out how the sync works in the demo below:
 <details>
   <summary>Click to expand video demo</summary>
   
-  ![Demo Video](./demo/demo.mp4)
+  <video src="./demo/demo.mp4" width="100%" autoplay loop muted playsinline>
+    Your browser does not support the video tag.
+  </video>
 </details>
 
 ---
