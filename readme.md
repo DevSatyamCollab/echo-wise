@@ -18,13 +18,8 @@ Built with **Go** for speed and a lightweight footprint.
 
 Check out how the sync works in the demo below:
 
-<details>
-  <summary>Click to expand video demo</summary>
-  
-  <video src="./demo/demo.mp4" width="100%" autoplay loop muted playsinline>
-    Your browser does not support the video tag.
-  </video>
-</details>
+https://github.com/user-attachments/assets/d60d640c-ad06-4678-acad-7559ae1910ec
+
 
 ---
 
