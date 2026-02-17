@@ -21,7 +21,7 @@ Check out how the sync works in the demo below:
 <details>
   <summary>Click to expand video demo</summary>
   
-  ![Demo Video](demo/demo.mp4)
+  ![Demo Video](./demo/demo.mp4)
 </details>
 
 ---
